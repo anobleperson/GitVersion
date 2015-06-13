@@ -111,8 +111,8 @@ namespace GitVersion
                 errorMessage = "Failed to inherit Increment branch configuration, ended up with: " + string.Join(", ", possibleParents.Select(p => p.Name));
 
             var hasDevelop = repository.FindBranch("develop") != null;
-            var branchName = hasDevelop ? "develop" : "master";
-
+            var branchName = string.Concat("origin/",hasDevelop ? "develop" : "master");
+            
             Logger.WriteWarning(errorMessage + Environment.NewLine + Environment.NewLine + "Falling back to " + branchName + " branch config");
             var value = GetBranchConfiguration(currentCommit, repository, onlyEvaluateTrackedBranches, config, repository.Branches[branchName]).Value;
             return new KeyValuePair<string, BranchConfig>(
