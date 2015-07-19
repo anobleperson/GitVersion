@@ -12,6 +12,8 @@
         [Required]
         public string SolutionDirectory { get; set; }
 
+        public bool NoFetch { get; set; }
+
         [Output]
         public string Major { get; set; }
 
@@ -66,6 +68,9 @@
         [Output]
         public string NuGetVersion { get; set; }
 
+        [Output]
+        public string CommitDate { get; set; }
+
         TaskLogger logger;
         IFileSystem fileSystem;
 
@@ -73,28 +78,21 @@
         {
             logger = new TaskLogger(this);
             fileSystem = new FileSystem();
-            Logger.WriteInfo = this.LogInfo;
-            Logger.WriteWarning = this.LogWarning;
+            Logger.SetLoggers(
+                this.LogInfo,
+                this.LogWarning,
+                s => this.LogError(s));
         }
 
         public override bool Execute()
         {
             try
             {
-                Tuple<CachedVersion, GitVersionContext> versionAndBranch;
-                var gitDirectory = GitDirFinder.TreeWalkForGitDir(SolutionDirectory);
-                var configuration = ConfigurationProvider.Provide(gitDirectory, fileSystem);
+                VersionVariables variables;
 
-                if (VersionAndBranchFinder.TryGetVersion(SolutionDirectory, out versionAndBranch, configuration))
+                if (VersionAndBranchFinder.TryGetVersion(SolutionDirectory, out variables, NoFetch, new Authentication(), fileSystem))
                 {
                     var thisType = typeof(GetVersion);
-                    var cachedVersion = versionAndBranch.Item1;
-                    var gitVersionContext = versionAndBranch.Item2;
-                    var config = gitVersionContext.Configuration;
-                    var variables = VariableProvider.GetVariablesFor(
-                        cachedVersion.SemanticVersion, config.AssemblyVersioningScheme, 
-                        config.VersioningMode, config.ContinuousDeploymentFallbackTag,
-                        gitVersionContext.IsCurrentCommitTagged);
                     foreach (var variable in variables)
                     {
                         thisType.GetProperty(variable.Key).SetValue(this, variable.Value, null);

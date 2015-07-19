@@ -56,11 +56,11 @@
     <Compile Include="ArgumentParser.cs" />
     <Compile Include="Arguments.cs" />
     <Compile Include="ExtensionMethods.cs" />
-    <Compile Include="GitPreparer.cs" />
     <Compile Include="HelpWriter.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="AssemblyInfo.cs" />
     <Compile Include="AssemblyInfoFileUpdate.cs" />
+    <Compile Include="SpecifiedArgumentRunner.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="GemAssets\.rspec" />

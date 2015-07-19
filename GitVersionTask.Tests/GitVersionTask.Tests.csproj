@@ -80,9 +80,9 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\packages\ObjectApproval.1.0.0\Lib\NET40\ObjectApproval.dll</HintPath>
     </Reference>
-    <Reference Include="Shouldly, Version=2.4.0.0, Culture=neutral, PublicKeyToken=6042cbcb05cbc941, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\packages\Shouldly.2.4.0\lib\net40\Shouldly.dll</HintPath>
+    <Reference Include="Shouldly, Version=2.5.0.0, Culture=neutral, PublicKeyToken=6042cbcb05cbc941, processorArchitecture=MSIL">
+      <HintPath>..\packages\Shouldly.2.5.0\lib\net40\Shouldly.dll</HintPath>
+      <Private>True</Private>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Collections.Immutable">
@@ -101,16 +101,13 @@
     <Compile Include="ApprovalTestsConfig.cs" />
     <Compile Include="AssemblyInfoBuilderTests.cs" />
     <Compile Include="AssemblyLocation.cs" />
+    <Compile Include="GitVersionTaskDirectoryTests.cs" />
     <Compile Include="Mocks\MockBuildEngine.cs" />
-    <Compile Include="VersionAndBranchFinderTests.cs" />
-    <Compile Include="GitHelperTests.cs" />
     <Compile Include="GetVersionTaskTests.cs" />
     <Compile Include="Helpers\IPostTestDirectoryRemover.cs" />
     <Compile Include="Helpers\LibGit2SharpExtensions.cs" />
     <Compile Include="Helpers\Scrubbers.cs" />
     <Compile Include="Helpers\SelfCleaningDirectory.cs" />
-    <Compile Include="Helpers\Lg2sHelperBase.cs" />
-    <Compile Include="UpdateAssemblyInfoTests.cs" />
     <Compile Include="ModuleInitializer.cs" />
   </ItemGroup>
   <ItemGroup>

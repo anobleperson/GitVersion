@@ -1,12 +1,13 @@
 ﻿namespace GitVersion.VersionCalculation.BaseVersionCalculators
 {
+    using System.Collections.Generic;
     using System.Linq;
     using System.Text.RegularExpressions;
     using LibGit2Sharp;
 
     public class MergeMessageBaseVersionStrategy : BaseVersionStrategy
     {
-        public override BaseVersion GetVersion(GitVersionContext context)
+        public override IEnumerable<BaseVersion> GetVersions(GitVersionContext context)
         {
             var commitsPriorToThan = context.CurrentBranch
                 .CommitsPriorToThan(context.CurrentCommit.When());
@@ -23,10 +24,8 @@
                         };
                     }
                     return Enumerable.Empty<BaseVersion>();
-                })
-                .ToArray();
-
-            return baseVersions.Length > 1 ? baseVersions.Aggregate((x, y) => x.SemanticVersion > y.SemanticVersion ? x : y) : baseVersions.SingleOrDefault();
+                }).ToList();
+            return baseVersions;
         }
 
         static bool TryParse(Commit mergeCommit, EffectiveConfiguration configuration, out SemanticVersion semanticVersion)
@@ -42,7 +41,8 @@
                 return null;
             }
 
-            var possibleVersions = Regex.Matches(mergeCommit.Message, @"^.*?(-|-v|/|/v|'|Finish )(?<PossibleVersions>\d+\.\d+(\.*\d+)*)")
+            //TODO: Make the version prefixes customizable
+            var possibleVersions = Regex.Matches(mergeCommit.Message, @"^.*?(([rR]elease|[hH]otfix|[aA]lpha)-|-v|/|/v|'|Finish )(?<PossibleVersions>\d+\.\d+(\.*\d+)*)")
                 .Cast<Match>()
                 .Select(m => m.Groups["PossibleVersions"].Value);
 

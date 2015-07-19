@@ -16,7 +16,7 @@ namespace GitVersion
 GitVersion [path]
 
     path            The directory containing .git. If not defined current directory is used. (Must be first argument)
-    init            Creates a sample GitVersion.yaml config file in the repository. Must be used with no other args
+    init            Configuration utility for gitversion
     /h or /?        Shows Help
 
     /targetpath     Same as 'path', but not positional
@@ -44,12 +44,17 @@ GitVersion [path]
     /u              Username in case authentication is required.
     /p              Password in case authentication is required.
     /c              The commit id to check. If not specified, the latest available commit on the specified branch will be used.
+    /dynamicRepoLocation
+                    By default dynamic repositories will be cloned to %tmp%. Use this switch to override
     
     # Execute build args
     /exec           Executes target executable making GitVersion variables available as environmental variables
     /execargs       Arguments for the executable specified by /exec
     /proj           Build a msbuild file, GitVersion variables will be passed as msbuild properties
     /projargs       Additional arguments to pass to msbuild
+
+
+gitversion init     Configuration utility for gitversion
 ";
 
             writeAction(message);

@@ -1,6 +1,7 @@
 ﻿namespace GitVersionCore.Tests.VersionCalculation.Strategies
 {
     using System.Collections.Generic;
+    using System.Linq;
     using GitVersion.VersionCalculation.BaseVersionCalculators;
     using LibGit2Sharp;
     using NUnit.Framework;
@@ -24,7 +25,7 @@
             }).Build();
             var sut = new MergeMessageBaseVersionStrategy();
 
-            var baseVersion = sut.GetVersion(context);
+            var baseVersion = sut.GetVersions(context).Single();
 
             baseVersion.ShouldIncrement.ShouldBe(false);
         }
@@ -80,7 +81,8 @@
   Commit message including a IP-number https://10.50.1.1
   A commit message")]
         [TestCase(@"Merge branch 'release/Sprint_2.0_Holdings_Computed_Balances'")]
-        public void MergeMessagesThatsNotRelatedToGitVersion(string commitMessage)
+        [TestCase(@"Merge branch 'feature/fix-for-08.14-push'")]
+        public void MergeMessagesThatIsNotRelatedToGitVersion(string commitMessage)
         {
 
             var parents = GetParents(true);
@@ -108,7 +110,7 @@
                 .Build();
             var sut = new MergeMessageBaseVersionStrategy();
 
-            var baseVersion = sut.GetVersion(context);
+            var baseVersion = sut.GetVersions(context).SingleOrDefault();
 
             if (expectedVersion == null)
             {

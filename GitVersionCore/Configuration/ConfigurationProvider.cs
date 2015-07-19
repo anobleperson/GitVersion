@@ -2,13 +2,14 @@ namespace GitVersion
 {
     using System.IO;
     using System.Text;
+    using GitVersion.Configuration.Init.Wizard;
     using GitVersion.Helpers;
 
     public class ConfigurationProvider
     {
-        public static Config Provide(string gitDirectory, IFileSystem fileSystem)
+        public static Config Provide(string workingDirectory, IFileSystem fileSystem)
         {
-            var configFilePath = GetConfigFilePath(gitDirectory);
+            var configFilePath = GetConfigFilePath(workingDirectory);
 
             if (fileSystem.Exists(configFilePath))
             {
@@ -33,27 +34,24 @@ namespace GitVersion
             return stringBuilder.ToString();
         }
 
-        public static void WriteSample(string gitDirectory, IFileSystem fileSystem)
+        static string GetConfigFilePath(string workingDirectory)
         {
-            var configFilePath = GetConfigFilePath(gitDirectory);
-
-            if (!fileSystem.Exists(configFilePath))
-            {
-                using (var stream = fileSystem.OpenWrite(configFilePath))
-                using (var writer = new StreamWriter(stream))
-                {
-                    ConfigSerialiser.WriteSample(writer);
-                }
-            }
-            else
-            {
-                Logger.WriteError("Cannot write sample, GitVersionConfig.yaml already exists");
-            }
+            return Path.Combine(workingDirectory, "GitVersionConfig.yaml");
         }
 
-        static string GetConfigFilePath(string gitDirectory)
+        public static void Init(string workingDirectory, IFileSystem fileSystem)
         {
-            return Path.Combine(Directory.GetParent(gitDirectory).FullName, "GitVersionConfig.yaml");
+            var configFilePath = GetConfigFilePath(workingDirectory);
+            var config = new ConfigInitWizard().Run(Provide(workingDirectory, fileSystem), workingDirectory, fileSystem);
+            if (config == null) return;
+
+            using (var stream = fileSystem.OpenWrite(configFilePath))
+            using (var writer = new StreamWriter(stream))
+            {
+                Logger.WriteInfo("Saving config file");
+                ConfigSerialiser.Write(config, writer);
+                stream.Flush();
+            }
         }
     }
 }

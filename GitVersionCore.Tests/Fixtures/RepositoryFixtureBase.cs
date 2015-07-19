@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using GitVersion;
 using LibGit2Sharp;
 using Shouldly;
@@ -23,14 +24,31 @@ public abstract class RepositoryFixtureBase : IDisposable
 
     public void AssertFullSemver(string fullSemver, IRepository repository = null, string commitId = null)
     {
+        Trace.WriteLine("---------");
+
+        var variables = GetVersion(repository, commitId);
+        variables.FullSemVer.ShouldBe(fullSemver);
+    }
+
+    public VersionVariables GetVersion(IRepository repository = null, string commitId = null)
+    {
         var gitVersionContext = new GitVersionContext(repository ?? Repository, configuration, IsForTrackedBranchOnly, commitId);
         var executeGitVersion = ExecuteGitVersion(gitVersionContext);
-        var variables = VariableProvider.GetVariablesFor(executeGitVersion, 
+        var variables = VariableProvider.GetVariablesFor(executeGitVersion,
             gitVersionContext.Configuration.AssemblyVersioningScheme,
-            gitVersionContext.Configuration.VersioningMode, 
+            gitVersionContext.Configuration.VersioningMode,
             gitVersionContext.Configuration.ContinuousDeploymentFallbackTag,
             gitVersionContext.IsCurrentCommitTagged);
-        variables.FullSemVer.ShouldBe(fullSemver);
+        try
+        {
+            return variables;
+        }
+        catch (Exception)
+        {
+            Trace.WriteLine("Test failing, dumping repository graph");
+            gitVersionContext.Repository.DumpGraph();
+            throw;
+        }
     }
 
     private SemanticVersion ExecuteGitVersion(GitVersionContext context)

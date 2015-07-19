@@ -206,10 +206,40 @@ public class ArgumentParserTests
     }
 
     [Test]
+    public void dynamicRepoLocation()
+    {
+        var arguments = ArgumentParser.ParseArguments("-dynamicRepoLocation c:\\foo\\");
+        arguments.DynamicRepositoryLocation.ShouldBe("c:\\foo\\");
+    }
+
+    [Test]
     public void can_log_to_console()
     {
         var arguments = ArgumentParser.ParseArguments("-l console -proj foo.sln");
         arguments.LogFilePath.ShouldBe("console");
+    }
+
+    [Test]
+    public void nofetch_true_when_defined()
+    {
+        var arguments = ArgumentParser.ParseArguments("-nofetch");
+        arguments.NoFetch = true;
+    }
+
+    [Test]
+    public void other_arguments_can_be_parsed_before_nofetch()
+    {
+        var arguments = ArgumentParser.ParseArguments("targetpath -nofetch ");
+        arguments.TargetPath = "targetpath";
+        arguments.NoFetch = true;
+    }
+
+    [Test]
+    public void other_arguments_can_be_parsed_after_nofetch()
+    {
+        var arguments = ArgumentParser.ParseArguments("-nofetch -proj foo.sln");
+        arguments.NoFetch = true;
+        arguments.Proj = "foo.sln";
     }
 
     [Test]
@@ -254,5 +284,4 @@ public class ArgumentParserTests
         var arguments = ArgumentParser.ParseArguments(@"-writejsontofile c:\temp");
         arguments.JsonOutputFile.ShouldBe(@"c:\temp");
     }
-
 }

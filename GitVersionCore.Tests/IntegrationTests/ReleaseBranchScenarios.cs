@@ -47,11 +47,12 @@ public class ReleaseBranchScenarios
             // Merge to develop
             fixture.Repository.Checkout("develop");
             fixture.Repository.MergeNoFF("release/1.0.0");
+            fixture.AssertFullSemver("1.1.0-unstable.1");
 
             fixture.Repository.MakeACommit();
             fixture.Repository.Branches.Remove(releaseBranch);
 
-            fixture.AssertFullSemver("1.1.0-unstable.1");
+            fixture.AssertFullSemver("1.1.0-unstable.2");
         }
     }
 
@@ -86,7 +87,7 @@ public class ReleaseBranchScenarios
     }
 
     [Test]
-    public void CanTakeVersionFromReleaseBranchWithTagOverriden()
+    public void CanTakeVersionFromReleaseBranchWithTagOverridden()
     {
         var config = new Config();
         config.Branches["release[/-]"].Tag = "rc";
@@ -238,8 +239,7 @@ public class ReleaseBranchScenarios
 
             //but keep working on the release
             fixture.Repository.Checkout("release-2.0.0");
-
-            fixture.AssertFullSemver("2.0.0-beta.2+3");
+            fixture.AssertFullSemver("2.0.0-beta.2+2");
         }
     }
 }

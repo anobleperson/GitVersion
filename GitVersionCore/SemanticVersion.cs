@@ -8,7 +8,7 @@ namespace GitVersion
         public static SemanticVersion Empty = new SemanticVersion();
 
         static Regex ParseSemVer = new Regex(
-            @"(?<SemVer>(?<Major>\d+)(\.(?<Minor>\d+))(\.(?<Patch>\d+))?)(\.(?<FourthPart>\d+))?(-(?<Tag>[^\+]*))?(\+(?<BuildMetaData>.*))?",
+            @"^(?<SemVer>(?<Major>\d+)(\.(?<Minor>\d+))(\.(?<Patch>\d+))?)(\.(?<FourthPart>\d+))?(-(?<Tag>[^\+]*))?(\+(?<BuildMetaData>.*))?$",
             RegexOptions.Compiled);
 
         public int Major;
@@ -147,7 +147,14 @@ namespace GitVersion
 
         public static bool TryParse(string version, string tagPrefixRegex, out SemanticVersion semanticVersion)
         {
-            var match = Regex.Match(version, string.Format("({0})?(?<version>.*)", tagPrefixRegex));
+            var match = Regex.Match(version, string.Format("^({0})?(?<version>.*)$", tagPrefixRegex));
+
+            if (!match.Success)
+            {
+                semanticVersion = null;
+                return false;
+            }
+            
             version = match.Groups["version"].Value;
             var parsed = ParseSemVer.Match(version);
 
@@ -270,6 +277,43 @@ namespace GitVersion
                 default:
                     throw new ArgumentException(string.Format("Unrecognised format '{0}'", format), "format");
             }
+        }
+
+        public SemanticVersion IncrementVersion(IncrementStrategy incrementStrategy)
+        {
+            var incremented = new SemanticVersion(this);
+            if (!incremented.PreReleaseTag.HasTag())
+            {
+                switch (incrementStrategy)
+                {
+                    case IncrementStrategy.None:
+                        break;
+                    case IncrementStrategy.Major:
+                        incremented.Major++;
+                        incremented.Minor = 0;
+                        incremented.Patch = 0;
+                        break;
+                    case IncrementStrategy.Minor:
+                        incremented.Minor++;
+                        incremented.Patch = 0;
+                        break;
+                    case IncrementStrategy.Patch:
+                        incremented.Patch++;
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException();
+                }
+            }
+            else
+            {
+                if (incremented.PreReleaseTag.Number != null)
+                {
+                    incremented.PreReleaseTag.Number = incremented.PreReleaseTag.Number;
+                    incremented.PreReleaseTag.Number++;
+                }
+            }
+
+            return incremented;
         }
     }
 }

@@ -11,11 +11,10 @@ namespace GitVersion
     class Program
     {
         static StringBuilder log = new StringBuilder();
-        const string MsBuild = @"c:\Windows\Microsoft.NET\Framework\v4.0.30319\msbuild.exe";
 
         static void Main()
         {
-            var exitCode = Run();
+            var exitCode = VerifyArgumentsAndRun();
 
             if (Debugger.IsAttached)
             {
@@ -31,15 +30,30 @@ namespace GitVersion
             Environment.Exit(exitCode);
         }
 
-        static int Run()
+        static int VerifyArgumentsAndRun()
         {
+            Arguments arguments = null;
             try
             {
-                Arguments arguments;
+                var fileSystem = new FileSystem();
+
                 var argumentsWithoutExeName = GetArgumentsWithoutExeName();
                 try
                 {
                     arguments = ArgumentParser.ParseArguments(argumentsWithoutExeName);
+                }
+                catch (WarningException ex)
+                {
+                    Console.WriteLine("Failed to parse arguments: {0}", string.Join(" ", argumentsWithoutExeName));
+                    if (!string.IsNullOrWhiteSpace(ex.Message))
+                    {
+                        Console.WriteLine();
+                        Console.WriteLine(ex.Message);
+                        Console.WriteLine();
+                    }
+
+                    HelpWriter.Write();
+                    return 1;
                 }
                 catch (Exception)
                 {
@@ -48,10 +62,21 @@ namespace GitVersion
                     HelpWriter.Write();
                     return 1;
                 }
-
                 if (arguments.IsHelp)
                 {
                     HelpWriter.Write();
+                    return 0;
+                }
+
+                ConfigureLogging(arguments);
+                if (arguments.Init)
+                {
+                    ConfigurationProvider.Init(arguments.TargetPath, fileSystem);
+                    return 0;
+                }
+                if (arguments.ShowConfig)
+                {
+                    Console.WriteLine(ConfigurationProvider.GetEffectiveConfigAsString(arguments.TargetPath, fileSystem));
                     return 0;
                 }
 
@@ -60,109 +85,9 @@ namespace GitVersion
                     arguments.Output = OutputType.BuildServer;
                 }
 
-                ConfigureLogging(arguments);
+                Logger.WriteInfo("Working directory: " + arguments.TargetPath);
 
-                var gitPreparer = new GitPreparer(arguments);
-                var gitDirectory = gitPreparer.Prepare();
-                if (string.IsNullOrEmpty(gitDirectory))
-                {
-                    Console.Error.WriteLine("Failed to prepare or find the .git directory in path '{0}'", arguments.TargetPath);
-                    return 1;
-                }
-
-                var fileSystem = new FileSystem();
-                if (arguments.Init)
-                {
-                    ConfigurationProvider.WriteSample(gitDirectory, fileSystem);
-                    return 0;
-                }
-                if (arguments.ShowConfig)
-                {
-                    Console.WriteLine(ConfigurationProvider.GetEffectiveConfigAsString(gitDirectory, fileSystem));
-                    return 0;
-                }
-
-                var workingDirectory = Directory.GetParent(gitDirectory).FullName;
-                Logger.WriteInfo("Working directory: " + workingDirectory);
-                var applicableBuildServers = GetApplicableBuildServers(arguments.Authentication).ToList();
-
-                foreach (var buildServer in applicableBuildServers)
-                {
-                    buildServer.PerformPreProcessingSteps(gitDirectory);
-                }
-                VersionVariables variables;
-                var versionFinder = new GitVersionFinder();
-                var configuration = ConfigurationProvider.Provide(gitDirectory, fileSystem);
-
-                using (var repo = RepositoryLoader.GetRepo(gitDirectory))
-                {
-                    var gitVersionContext = new GitVersionContext(repo, configuration, !arguments.IncludeUntrackedBranches, arguments.CommitId);
-                    var semanticVersion = versionFinder.FindVersion(gitVersionContext);
-                    var config = gitVersionContext.Configuration;
-                    variables = VariableProvider.GetVariablesFor(semanticVersion, config.AssemblyVersioningScheme, config.VersioningMode, config.ContinuousDeploymentFallbackTag, gitVersionContext.IsCurrentCommitTagged);
-                }
-
-                if (arguments.Output == OutputType.BuildServer)
-                {
-                    foreach (var buildServer in applicableBuildServers)
-                    {
-                        buildServer.WriteIntegration(Console.WriteLine, variables);
-                    }
-                }
-
-                if (arguments.Output == OutputType.Json)
-                {
-                    string jsonOutput;
-                    switch (arguments.ShowVariable)
-                    {
-                        case null:
-                            jsonOutput = JsonOutputFormatter.ToJson(variables);
-                            break;
-
-                        default:
-                            string part;
-                            if (!variables.TryGetValue(arguments.ShowVariable, out part))
-                            {
-                                throw new WarningException(string.Format("'{0}' variable does not exist", arguments.ShowVariable));
-                            }
-                            jsonOutput =part;
-                            break;
-                    }
-                    if (string.IsNullOrWhiteSpace(arguments.JsonOutputFile))
-                    {
-                        Console.WriteLine(jsonOutput);
-                    }
-                    else
-                    {
-                        var outfile = new FileInfo(arguments.JsonOutputFile);
-                        using (var textwriter = outfile.CreateText())
-                        {
-                            textwriter.Write(jsonOutput);
-                        }
-                    }
-                }
-
-                using (var assemblyInfoUpdate = new AssemblyInfoFileUpdate(arguments, workingDirectory, variables, fileSystem))
-                {
-                    var execRun = RunExecCommandIfNeeded(arguments, workingDirectory, variables);
-                    var msbuildRun = RunMsBuildIfNeeded(arguments, workingDirectory, variables);
-                    if (!execRun && !msbuildRun)
-                    {
-                        assemblyInfoUpdate.DoNotRestoreAssemblyInfo();
-                        //TODO Put warning back
-                        //if (!context.CurrentBuildServer.IsRunningInBuildAgent())
-                        //{
-                        //    Console.WriteLine("WARNING: Not running in build server and /ProjectFile or /Exec arguments not passed");
-                        //    Console.WriteLine();
-                        //    Console.WriteLine("Run GitVersion.exe /? for help");
-                        //}
-                    }
-                }
-
-                if (gitPreparer.IsDynamicGitRepository)
-                {
-                    DeleteHelper.DeleteGitRepository(gitPreparer.DynamicGitRepositoryPath);
-                }
+                SpecifiedArgumentRunner.Run(arguments, fileSystem);
             }
             catch (WarningException exception)
             {
@@ -174,15 +99,18 @@ namespace GitVersion
             {
                 var error = string.Format("An unexpected error occurred:\r\n{0}", exception);
                 Logger.WriteError(error);
+
+                if (arguments != null)
+                {
+                    Logger.WriteInfo(string.Empty);
+                    Logger.WriteInfo("Here is the current git graph (please include in issue): ");
+                    Logger.WriteInfo("Showing max of 100 commits");
+                    LibGitExtensions.DumpGraph(arguments.TargetPath, Logger.WriteInfo, 100);
+                }
                 return 1;
             }
 
             return 0;
-        }
-
-        static IEnumerable<IBuildServer> GetApplicableBuildServers(Authentication authentication)
-        {
-            return BuildServerList.GetApplicableBuildServers(authentication);
         }
 
         static void ConfigureLogging(Arguments arguments)
@@ -192,16 +120,12 @@ namespace GitVersion
                 s => log.AppendLine(s)
             };
 
-            if (arguments.Output == OutputType.BuildServer)
+            if (arguments.Output == OutputType.BuildServer || arguments.LogFilePath == "console" || arguments.Init)
             {
                 writeActions.Add(Console.WriteLine);
             }
 
-            if (arguments.LogFilePath == "console")
-            {
-                writeActions.Add(Console.WriteLine);
-            }
-            else if (arguments.LogFilePath != null)
+            if (arguments.LogFilePath != null && arguments.LogFilePath != "console")
             {
                 try
                 {
@@ -219,9 +143,10 @@ namespace GitVersion
                 }
             }
 
-            Logger.WriteInfo = s => writeActions.ForEach(a => a(s));
-            Logger.WriteWarning = s => writeActions.ForEach(a => a(s));
-            Logger.WriteError = s => writeActions.ForEach(a => a(s));
+            Logger.SetLoggers(
+                s => writeActions.ForEach(a => a(s)),
+                s => writeActions.ForEach(a => a(s)),
+                s => writeActions.ForEach(a => a(s)));
         }
 
         static void WriteLogEntry(Arguments arguments, string s)
@@ -235,44 +160,6 @@ namespace GitVersion
             return Environment.GetCommandLineArgs()
                 .Skip(1)
                 .ToList();
-        }
-
-        static bool RunMsBuildIfNeeded(Arguments args, string workingDirectory, VersionVariables variables)
-        {
-            if (string.IsNullOrEmpty(args.Proj)) return false;
-
-            Logger.WriteInfo(string.Format("Launching {0} \"{1}\" {2}", MsBuild, args.Proj, args.ProjArgs));
-            var results = ProcessHelper.Run(
-                Logger.WriteInfo, Logger.WriteError,
-                null, MsBuild, string.Format("\"{0}\" {1}", args.Proj, args.ProjArgs), workingDirectory,
-                GetEnvironmentalVariables(variables));
-
-            if (results != 0)
-                throw new WarningException("MsBuild execution failed, non-zero return code");
-
-            return true;
-        }
-
-        static bool RunExecCommandIfNeeded(Arguments args, string workingDirectory, VersionVariables variables)
-        {
-            if (string.IsNullOrEmpty(args.Exec)) return false;
-
-            Logger.WriteInfo(string.Format("Launching {0} {1}", args.Exec, args.ExecArgs));
-            var results = ProcessHelper.Run(
-                Logger.WriteInfo, Logger.WriteError,
-                null, args.Exec, args.ExecArgs, workingDirectory,
-                GetEnvironmentalVariables(variables));
-            if (results != 0)
-                throw new WarningException(string.Format("Execution of {0} failed, non-zero return code", args.Exec));
-
-            return true;
-        }
-
-        static KeyValuePair<string, string>[] GetEnvironmentalVariables(VersionVariables variables)
-        {
-            return variables
-                .Select(v => new KeyValuePair<string, string>("GitVersion_" + v.Key, v.Value))
-                .ToArray();
         }
     }
 }

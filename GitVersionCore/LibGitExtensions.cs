@@ -2,8 +2,11 @@ namespace GitVersion
 {
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.IO;
     using System.Linq;
+    using System.Text;
+    using GitVersion.Helpers;
     using LibGit2Sharp;
 
     static class LibGitExtensions
@@ -24,17 +27,46 @@ namespace GitVersion
             return repository.Branches.FirstOrDefault(x => x.Name == "origin/" + branchName);
         }
 
-        public static Commit FindCommitBranchWasBranchedFrom(this Branch branch, IRepository repository, bool onlyTrackedBranches, params Branch[] excludedBranches)
+        public static SemanticVersion LastVersionTagOnBranch(this Branch branch, IRepository repository, string tagPrefixRegex)
         {
-            var currentBranches = branch.Tip.GetBranchesContainingCommit(repository, onlyTrackedBranches).ToList();
-            var tips = repository.Branches.Except(excludedBranches).Where(b => b != branch && !b.IsRemote).Select(b => b.Tip).ToList();
-            var branchPoint = branch.Commits.FirstOrDefault(c =>
+            var tags = repository.Tags.Select(t => t).ToList();
+
+            return repository.Commits.QueryBy(new CommitFilter
             {
-                if (tips.Contains(c)) return true;
-                var branchesContainingCommit = c.GetBranchesContainingCommit(repository, onlyTrackedBranches).ToList();
-                return branchesContainingCommit.Count > currentBranches.Count;
-            });
-            return branchPoint ?? branch.Tip;
+                Since = branch.Tip
+            })
+            .SelectMany(c => tags.Where(t => c.Sha == t.Target.Sha).SelectMany(t =>
+            {
+                SemanticVersion semver;
+                if (SemanticVersion.TryParse(t.Name, tagPrefixRegex, out semver))
+                    return new [] { semver };
+                return new SemanticVersion[0];
+            }))
+            .FirstOrDefault();
+        }
+
+        public static Commit FindCommitBranchWasBranchedFrom(this Branch branch, IRepository repository, params Branch[] excludedBranches)
+        {
+            using (Logger.IndentLog("Finding branch source"))
+            {
+                var otherBranches = repository.Branches.Except(excludedBranches).Where(b => IsSameBranch(branch, b)).ToList();
+                var mergeBases = otherBranches.Select(b =>
+                {
+                    var otherCommit = b.Tip;
+                    if (b.Tip.Parents.Contains(branch.Tip))
+                    {
+                        otherCommit = b.Tip.Parents.First();
+                    }
+                    var mergeBase = repository.Commits.FindMergeBase(otherCommit, branch.Tip);
+                    return mergeBase;
+                }).Where(b => b != null).ToList();
+                return mergeBases.OrderByDescending(b => b.Committer.When).FirstOrDefault();
+            }
+        }
+
+        static bool IsSameBranch(Branch branch, Branch b)
+        {
+            return (b.IsRemote ? b.Name.Replace(b.Remote.Name + "/", string.Empty) : b.Name) != branch.Name;
         }
 
         public static IEnumerable<Branch> GetBranchesContainingCommit(this Commit commit, IRepository repository, bool onlyTrackedBranches)
@@ -56,7 +88,7 @@ namespace GitVersion
                 yield break;
             }
 
-            foreach (var branch in repository.Branches)
+            foreach (var branch in repository.Branches.Where(b => (onlyTrackedBranches && !b.IsTracking)))
             {
                 var commits = repository.Commits.QueryBy(new CommitFilter { Since = branch }).Where(c => c.Sha == commit.Sha);
 
@@ -113,7 +145,7 @@ namespace GitVersion
                 return;
             }
 
-            Logger.WriteInfo(string.Format("Checking out files that might be needed later in dynamic repository"));
+            Logger.WriteInfo("Checking out files that might be needed later in dynamic repository");
 
             foreach (var fileName in fileNames)
             {
@@ -144,6 +176,41 @@ namespace GitVersion
                     Logger.WriteWarning(string.Format("  An error occurred while checking out '{0}': '{1}'", fileName, ex.Message));
                 }
             }
+        }
+
+        public static void DumpGraph(this IRepository repository, Action<string> writer = null, int? maxCommits = null)
+        {
+            DumpGraph(repository.Info.Path, writer, maxCommits);
+        }
+
+        public static void DumpGraph(string workingDirectory, Action<string> writer = null, int? maxCommits = null)
+        {
+            var output = new StringBuilder();
+
+            try
+            {
+                ProcessHelper.Run(
+                    o => output.AppendLine(o),
+                    e => output.AppendLineFormat("ERROR: {0}", e),
+                    null,
+                    "git",
+                    @"log --graph --format=""%h %cr %d"" --decorate --date=relative --all --remotes=*" + (maxCommits != null ? string.Format(" -n {0}", maxCommits) : null),
+                    //@"log --graph --abbrev-commit --decorate --date=relative --all --remotes=*",
+                    workingDirectory);
+            }
+            catch (FileNotFoundException exception)
+            {
+                if (exception.FileName != "git")
+                {
+                    throw;
+                }
+
+                output.AppendLine("Could not execute 'git log' due to the following error:");
+                output.AppendLine(exception.ToString());
+            }
+
+            if (writer != null) writer(output.ToString());
+            else Trace.Write(output.ToString());
         }
     }
 }

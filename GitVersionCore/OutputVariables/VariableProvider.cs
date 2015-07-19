@@ -11,7 +11,7 @@
             if (mode == VersioningMode.ContinuousDeployment && !currentCommitIsTagged)
             {
                 semanticVersion = new SemanticVersion(semanticVersion);
-                // Continuous Delivery always requires a pre-release tag unless the commit is tagged
+                // Continuous Deployment always requires a pre-release tag unless the commit is tagged
                 if (!semanticVersion.PreReleaseTag.HasTag())
                 {
                     semanticVersion.PreReleaseTag.Name = continuousDeploymentFallbackTag;
@@ -38,7 +38,8 @@
                 fullSemVer: semanticVersion.ToString("f"),
                 informationalVersion: semanticVersion.ToString("i"),
                 branchName: bmd.Branch,
-                sha: bmd.Sha);
+                sha: bmd.Sha,
+                commitDate: bmd.CommitDate.UtcDateTime.ToString("yyyy-MM-dd"));
 
             return variables;
         }

@@ -6,7 +6,8 @@
 
     public class VersionVariables : IEnumerable<KeyValuePair<string, string>>
     {
-        public VersionVariables(string major, string minor, string patch, string buildMetaData, string fullBuildMetaData, string branchName, string sha, string majorMinorPatch, string semVer, string legacySemVer, string legacySemVerPadded, string fullSemVer, string assemblySemVer, string preReleaseTag, string preReleaseTagWithDash, string informationalVersion)
+        public VersionVariables(string major, string minor, string patch, string buildMetaData, string fullBuildMetaData, string branchName, string sha, string majorMinorPatch, string semVer, string legacySemVer, string legacySemVerPadded, string fullSemVer, string assemblySemVer, string preReleaseTag, string preReleaseTagWithDash, string informationalVersion,
+            string commitDate)
         {
             Major = major;
             Minor = minor;
@@ -24,6 +25,7 @@
             PreReleaseTag = preReleaseTag;
             PreReleaseTagWithDash = preReleaseTagWithDash;
             InformationalVersion = informationalVersion;
+            CommitDate = commitDate;
         }
 
         public string Major { get; private set; }
@@ -48,10 +50,12 @@
         public string NuGetVersionV2 { get { return LegacySemVerPadded.ToLower(); } }
         public string NuGetVersion { get { return NuGetVersionV2; } }
 
-        public IEnumerable<string> AvailableVariables
+        public static IEnumerable<string> AvailableVariables
         {
             get { return typeof(VersionVariables).GetProperties().Select(p => p.Name).OrderBy(a => a); }
         }
+
+        public string CommitDate { get; set; }
 
         public IEnumerator<KeyValuePair<string, string>> GetEnumerator()
         {

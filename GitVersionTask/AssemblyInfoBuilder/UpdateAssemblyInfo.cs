@@ -25,6 +25,8 @@
         [Output]
         public string AssemblyInfoTempFilePath { get; set; }
 
+        public bool NoFetch { get; set; }
+
         TaskLogger logger;
         IFileSystem fileSystem;
 
@@ -33,8 +35,10 @@
             CompileFiles = new ITaskItem[] { };
             logger = new TaskLogger(this);
             fileSystem = new FileSystem();
-            Logger.WriteInfo = this.LogInfo;
-            Logger.WriteWarning = this.LogWarning;
+            Logger.SetLoggers(
+                this.LogInfo,
+                this.LogWarning,
+                s => this.LogError(s));
         }
 
         public override bool Execute()
@@ -65,22 +69,16 @@
             TempFileTracker.DeleteTempFiles();
 
             InvalidFileChecker.CheckForInvalidFiles(CompileFiles, ProjectFile);
-
-            var gitDirectory = GitDirFinder.TreeWalkForGitDir(SolutionDirectory);
-            if (string.IsNullOrEmpty(gitDirectory))
-                return;
-
-            var configuration = ConfigurationProvider.Provide(gitDirectory, fileSystem);
-
-            Tuple<CachedVersion, GitVersionContext> semanticVersion;
-            if (!VersionAndBranchFinder.TryGetVersion(SolutionDirectory, out semanticVersion, configuration))
+            
+            VersionVariables versionVariables;
+            if (!VersionAndBranchFinder.TryGetVersion(SolutionDirectory, out versionVariables, NoFetch, new Authentication(), fileSystem))
             {
                 return;
             }
-            CreateTempAssemblyInfo(semanticVersion.Item1, semanticVersion.Item2.Configuration);
+            CreateTempAssemblyInfo(versionVariables);
         }
 
-        void CreateTempAssemblyInfo(CachedVersion semanticVersion, EffectiveConfiguration configuration)
+        void CreateTempAssemblyInfo(VersionVariables versionVariables)
         {
 
             if (IntermediateOutputPath == null)
@@ -93,11 +91,8 @@
                 AssemblyInfoTempFilePath = Path.Combine(IntermediateOutputPath, "GitVersionTaskAssemblyInfo.g.cs");
             }
 
-            var assemblyInfoBuilder = new AssemblyInfoBuilder
-            {
-                CachedVersion = semanticVersion
-            };
-            var assemblyInfo = assemblyInfoBuilder.GetAssemblyInfoText(configuration);
+            var assemblyInfoBuilder = new AssemblyInfoBuilder();
+            var assemblyInfo = assemblyInfoBuilder.GetAssemblyInfoText(versionVariables);
             File.WriteAllText(AssemblyInfoTempFilePath, assemblyInfo);
         }
     }

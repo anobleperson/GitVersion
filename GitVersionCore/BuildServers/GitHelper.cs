@@ -1,5 +1,6 @@
 namespace GitVersion
 {
+    using System;
     using LibGit2Sharp;
     using System.Collections.Generic;
     using System.Linq;
@@ -9,8 +10,15 @@ namespace GitVersion
     {
         const string MergeMessageRegexPattern = "refs/heads/(pr|pull(-requests)?/(?<issuenumber>[0-9]*)/(merge|head))";
 
-        public static void NormalizeGitDirectory(string gitDirectory, Authentication authentication)
+        public static void NormalizeGitDirectory(string gitDirectory, Authentication authentication, bool noFetch)
         {
+            //If noFetch is enabled, then GitVersion will assume that the git repository is normalized before execution, so that fetching from remotes is not required.
+            if (noFetch)
+            {
+                Logger.WriteInfo("Skipping fetching");
+                return;
+            }
+
             using (var repo = new Repository(gitDirectory))
             {
                 var remote = EnsureOnlyOneRemoteIsDefined(repo);
@@ -42,12 +50,33 @@ namespace GitVersion
 
                 if (localBranchesWhereCommitShaIsHead.Count > 1)
                 {
-                    var names = string.Join(", ", localBranchesWhereCommitShaIsHead.Select(r => r.CanonicalName));
-                    var message = string.Format("Found more than one local branch pointing at the commit '{0}'. Unable to determine which one to use ({1}).", headSha, names);
-                    throw new WarningException(message);
-                }
+                    var branchNames = localBranchesWhereCommitShaIsHead.Select(r => r.CanonicalName);
+                    var csvNames = string.Join(", ", branchNames);
+                    const string moveBranchMsg = "Move one of the branches along a commit to remove warning";
 
-                if (localBranchesWhereCommitShaIsHead.Count == 0)
+                    Logger.WriteWarning(string.Format("Found more than one local branch pointing at the commit '{0}' ({1}).", headSha, csvNames));
+                    var master = localBranchesWhereCommitShaIsHead.SingleOrDefault(n => n.Name == "master");
+                    if (master != null)
+                    {
+                        Logger.WriteWarning("Because one of the branches is 'master', will build master." + moveBranchMsg);
+                        master.Checkout();
+                    }
+                    else
+                    {
+                        var branchesWithoutSeparators = localBranchesWhereCommitShaIsHead.Where(b => !b.Name.Contains('/') && !b.Name.Contains('-')).ToList();
+                        if (branchesWithoutSeparators.Count == 1)
+                        {
+                            var branchWithoutSeparator = branchesWithoutSeparators[0];
+                            Logger.WriteWarning(string.Format("Choosing {0} as it is the only branch without / or - in it. " + moveBranchMsg, branchWithoutSeparator.CanonicalName));
+                            branchWithoutSeparator.Checkout();
+                        }
+                        else
+                        {
+                            throw new WarningException("Failed to try and guess branch to use. " + moveBranchMsg);
+                        }
+                    }
+                }
+                else if (localBranchesWhereCommitShaIsHead.Count == 0)
                 {
                     Logger.WriteInfo(string.Format("No local branch pointing at the commit '{0}'. Fake branch needs to be created.", headSha));
                     CreateFakeBranchPointingAtThePullRequestTip(repo, authentication);
@@ -157,6 +186,20 @@ namespace GitVersion
             repo.Checkout(fakeBranchName);
         }
 
+        internal static IEnumerable<DirectReference> GetRemoteTipsUsingUsernamePasswordCredentials(Repository repo, string repoUrl, string username, string password)
+        {
+            // This is a work-around as long as https://github.com/libgit2/libgit2sharp/issues/1099 is not fixed
+            var remote = repo.Network.Remotes.Add(Guid.NewGuid().ToString(), repoUrl);
+            try
+            {
+                return GetRemoteTipsUsingUsernamePasswordCredentials(repo, remote, username, password);
+            }
+            finally
+            {
+                repo.Network.Remotes.Remove(remote.Name);
+            }
+        }
+
         static IEnumerable<DirectReference> GetRemoteTipsUsingUsernamePasswordCredentials(Repository repo, Remote remote, string username, string password)
         {
             return repo.Network.ListReferences(remote, (url, fromUrl, types) => new UsernamePasswordCredentials
@@ -178,7 +221,9 @@ namespace GitVersion
 
             foreach (var remoteTrackingReference in repo.Refs.FromGlob(prefix + "*").Where(r => r.CanonicalName != remoteHeadCanonicalName))
             {
-                var localCanonicalName = "refs/heads/" + remoteTrackingReference.CanonicalName.Substring(prefix.Length);
+                var remoteTrackingReferenceName = remoteTrackingReference.CanonicalName;
+                var branchName = remoteTrackingReferenceName.Substring(prefix.Length);
+                var localCanonicalName = "refs/heads/" + branchName;
 
                 if (repo.Refs.Any(x => x.CanonicalName == localCanonicalName))
                 {
@@ -196,6 +241,9 @@ namespace GitVersion
                 {
                     repo.Refs.Add(localCanonicalName, new ObjectId(symbolicReference.ResolveToDirectReference().TargetIdentifier), true);
                 }
+
+                var branch = repo.Branches[branchName];
+                repo.Branches.Update(branch, b => b.TrackedBranch = remoteTrackingReferenceName);
             }
         }
 

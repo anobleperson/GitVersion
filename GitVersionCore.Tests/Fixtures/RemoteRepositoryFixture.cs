@@ -8,10 +8,24 @@ public class RemoteRepositoryFixture : RepositoryFixtureBase
     public string LocalRepositoryPath;
     public IRepository LocalRepository;
 
+    public RemoteRepositoryFixture(Func<string, IRepository> builder, Config configuration)
+        : base(builder, configuration)
+    {
+        CloneRepository();
+    }
+
     public RemoteRepositoryFixture(Config configuration)
         : base(CreateNewRepository, configuration)
     {
         CloneRepository();
+    }
+
+    /// <summary>
+    /// Simulates running on build server
+    /// </summary>
+    public void InitialiseRepo()
+    {
+        new GitPreparer(null, null, new Authentication(), null, false, LocalRepositoryPath).Initialise(true);
     }
 
     static IRepository CreateNewRepository(string path)
