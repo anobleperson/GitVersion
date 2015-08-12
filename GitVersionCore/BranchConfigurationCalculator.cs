@@ -10,13 +10,7 @@ namespace GitVersion
     {
         public static KeyValuePair<string, BranchConfig> GetBranchConfiguration(Commit currentCommit, IRepository repository, bool onlyEvaluateTrackedBranches, Config config, Branch currentBranch, IList<Branch> excludedInheritBranches = null)
         {
-            var matchingBranches = LookupBranchConfiguration(config, currentBranch);
-
-			TODO: put this in LookupBranch
-			if (matchingBranches.Any() == false && onlyEvaluateTrackedBranches == false)
-            {
-                matchingBranches = config.Branches.Where(b => Regex.IsMatch(currentBranch.Name, "^origin/" + b.Key, RegexOptions.IgnoreCase)).ToArray();
-            }
+            var matchingBranches = LookupBranchConfiguration(config, currentBranch, onlyEvaluateTrackedBranches);
 			
             if (matchingBranches.Length == 0)
             {
@@ -39,9 +33,15 @@ namespace GitVersion
             throw new Exception(string.Format(format, currentBranch.Name, string.Join(", ", matchingBranches.Select(b => b.Key))));
         }
 
-        static KeyValuePair<string, BranchConfig>[] LookupBranchConfiguration(Config config, Branch currentBranch)
+        static KeyValuePair<string, BranchConfig>[] LookupBranchConfiguration(Config config, Branch currentBranch, bool onlyEvaluateTrackedBranches)
         {
-            return config.Branches.Where(b => Regex.IsMatch(currentBranch.Name, "^" + b.Key, RegexOptions.IgnoreCase)).ToArray();
+            var matchingBranches = config.Branches.Where(b => Regex.IsMatch(currentBranch.Name, "^" + b.Key, RegexOptions.IgnoreCase)).ToArray();
+            
+            if (matchingBranches.Any() == false && onlyEvaluateTrackedBranches == false)
+            {
+                matchingBranches = config.Branches.Where(b => Regex.IsMatch(currentBranch.Name, "^origin/" + b.Key, RegexOptions.IgnoreCase)).ToArray();
+            }
+            return matchingBranches;
         }
 
         static KeyValuePair<string, BranchConfig> InheritBranchConfiguration(bool onlyEvaluateTrackedBranches, IRepository repository, Commit currentCommit, Branch currentBranch, KeyValuePair<string, BranchConfig> keyValuePair, BranchConfig branchConfiguration, Config config, IList<Branch> excludedInheritBranches)
@@ -83,7 +83,7 @@ namespace GitVersion
                 {
                     excludedInheritBranches = repository.Branches.Where(b =>
                     {
-                        var branchConfig = LookupBranchConfiguration(config, b);
+                        var branchConfig = LookupBranchConfiguration(config, b, onlyEvaluateTrackedBranches);
                         return branchConfig.Length == 1 && branchConfig[0].Value.Increment == IncrementStrategy.Inherit;
                     }).ToList();
                 }

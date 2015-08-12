@@ -230,7 +230,6 @@ namespace GitVersion
                 if (IsSwitch("includeuntrackedbranches", name))
                 {
                     arguments.IncludeUntrackedBranches = true;
-                    index--;
                     continue;
                 }
 
