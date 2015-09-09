@@ -252,7 +252,15 @@ namespace GitVersion
                     return formatter.Format(format, this, formatProvider);
             }
 
-            switch (format.ToLower())
+            // Check for lp first because the param can varry
+            format = format.ToLower();
+            if (format.StartsWith("lp", StringComparison.Ordinal))
+            {
+                // handle the padding
+                return PreReleaseTag.HasTag() ? string.Format("{0}-{1}", ToString("j"), PreReleaseTag.ToString(format)) : ToString("j");
+            }
+
+            switch (format)
             {
                 case "j":
                     return string.Format("{0}.{1}.{2}", Major, Minor, Patch);
@@ -262,8 +270,6 @@ namespace GitVersion
                     return PreReleaseTag.HasTag() ? string.Format("{0}-{1}", ToString("j"), PreReleaseTag.ToString("t")) : ToString("j");
                 case "l":
                     return PreReleaseTag.HasTag() ? string.Format("{0}-{1}", ToString("j"), PreReleaseTag.ToString("l")) : ToString("j");
-                case "lp":
-                    return PreReleaseTag.HasTag() ? string.Format("{0}-{1}", ToString("j"), PreReleaseTag.ToString("lp")) : ToString("j");
                 case "f":
                     {
                         var buildMetadata = BuildMetaData.ToString();
@@ -281,25 +287,25 @@ namespace GitVersion
             }
         }
 
-        public SemanticVersion IncrementVersion(IncrementStrategy incrementStrategy)
+        public SemanticVersion IncrementVersion(VersionField incrementStrategy)
         {
             var incremented = new SemanticVersion(this);
             if (!incremented.PreReleaseTag.HasTag())
             {
                 switch (incrementStrategy)
                 {
-                    case IncrementStrategy.None:
+                    case VersionField.None:
                         break;
-                    case IncrementStrategy.Major:
+                    case VersionField.Major:
                         incremented.Major++;
                         incremented.Minor = 0;
                         incremented.Patch = 0;
                         break;
-                    case IncrementStrategy.Minor:
+                    case VersionField.Minor:
                         incremented.Minor++;
                         incremented.Patch = 0;
                         break;
-                    case IncrementStrategy.Patch:
+                    case VersionField.Patch:
                         incremented.Patch++;
                         break;
                     default:
@@ -317,5 +323,13 @@ namespace GitVersion
 
             return incremented;
         }
+    }
+
+    public enum VersionField
+    {
+        None,
+        Patch,
+        Minor,
+        Major
     }
 }

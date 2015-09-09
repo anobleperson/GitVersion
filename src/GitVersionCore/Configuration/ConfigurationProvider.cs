@@ -1,5 +1,6 @@
 namespace GitVersion
 {
+    using System.Collections.Generic;
     using System.IO;
     using System.Linq;
     using System.Text;
@@ -20,22 +21,31 @@ namespace GitVersion
 
         public static void ApplyDefaultsTo(Config config)
         {
+            MigrateBranches(config);
+
             config.AssemblyVersioningScheme = config.AssemblyVersioningScheme ?? AssemblyVersioningScheme.MajorMinorPatch;
             config.TagPrefix = config.TagPrefix ?? DefaultTagPrefix;
             config.VersioningMode = config.VersioningMode ?? VersioningMode.ContinuousDelivery;
             config.ContinuousDeploymentFallbackTag = config.ContinuousDeploymentFallbackTag ?? "ci";
+            config.MajorVersionBumpMessage = config.MajorVersionBumpMessage ?? IncrementStrategyFinder.DefaultMajorPattern;
+            config.MinorVersionBumpMessage = config.MinorVersionBumpMessage ?? IncrementStrategyFinder.DefaultMinorPattern;
+            config.PatchVersionBumpMessage = config.PatchVersionBumpMessage ?? IncrementStrategyFinder.DefaultPatchPattern;
+            config.CommitMessageIncrementing = config.CommitMessageIncrementing ?? CommitMessageIncrementMode.Enabled;
+            config.LegacySemVerPadding = config.LegacySemVerPadding ?? 4;
+            config.BuildMetaDataPadding = config.BuildMetaDataPadding ?? 4;
+
             var configBranches = config.Branches.ToList();
 
             ApplyBranchDefaults(config, GetOrCreateBranchDefaults(config, "master"), defaultTag: string.Empty, defaultPreventIncrement: true);
-            ApplyBranchDefaults(config, GetOrCreateBranchDefaults(config, "release[/-]"), defaultTag: "beta", defaultPreventIncrement: true);
-            ApplyBranchDefaults(config, GetOrCreateBranchDefaults(config, "feature[/-]"), defaultIncrementStrategy: IncrementStrategy.Inherit);
+            ApplyBranchDefaults(config, GetOrCreateBranchDefaults(config, "releases?[/-]"), defaultTag: "beta", defaultPreventIncrement: true);
+            ApplyBranchDefaults(config, GetOrCreateBranchDefaults(config, "features?[/-]"), defaultIncrementStrategy: IncrementStrategy.Inherit);
             ApplyBranchDefaults(config, GetOrCreateBranchDefaults(config, @"(pull|pull\-requests|pr)[/-]"),
                 defaultTag: "PullRequest",
                 defaultTagNumberPattern: @"[/-](?<number>\d+)[-/]",
                 defaultIncrementStrategy: IncrementStrategy.Inherit);
-            ApplyBranchDefaults(config, GetOrCreateBranchDefaults(config, "hotfix[/-]"), defaultTag: "beta");
+            ApplyBranchDefaults(config, GetOrCreateBranchDefaults(config, "hotfix(es)?[/-]"), defaultTag: "beta");
             ApplyBranchDefaults(config, GetOrCreateBranchDefaults(config, "support[/-]"), defaultTag: string.Empty, defaultPreventIncrement: true);
-            ApplyBranchDefaults(config, GetOrCreateBranchDefaults(config, "develop"), 
+            ApplyBranchDefaults(config, GetOrCreateBranchDefaults(config, "dev(elop)?(ment)?$"), 
                 defaultTag: "unstable",
                 defaultIncrementStrategy: IncrementStrategy.Minor,
                 defaultVersioningMode: VersioningMode.ContinuousDeployment,
@@ -48,6 +58,33 @@ namespace GitVersion
                 ApplyBranchDefaults(config, branchConfig.Value);
             }
         }
+
+        static void MigrateBranches(Config config)
+        {
+            // Map of current names and previous names
+            var dict = new Dictionary<string, string[]>
+            {
+                { "hotfix(es)?[/-]", new []{"hotfix[/-]"}},
+                { "features?[/-]", new []{"feature[/-]"}},
+                { "releases?[/-]", new []{"release[/-]"}},
+                { "dev(elop)?(ment)?$", new []{"develop"}}
+            };
+
+            foreach (var mapping in dict)
+            {
+                foreach (var source in mapping.Value)
+                {
+                    if (config.Branches.ContainsKey(source))
+                    {
+                        // found one, rename
+                        var bc = config.Branches[source];
+                        config.Branches.Remove(source);
+                        config.Branches[mapping.Key] = bc; // re-add with new name
+                    }
+                }
+            }
+        }
+
 
         static BranchConfig GetOrCreateBranchDefaults(Config config, string branch)
         {

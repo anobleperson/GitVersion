@@ -13,7 +13,7 @@ public class HotfixBranchScenarios
         {
             // create hotfix
             fixture.Repository.Checkout("master");
-            fixture.Repository.CreateBranch("hotfix-1.2.1").Checkout();
+            fixture.Repository.Checkout(fixture.Repository.CreateBranch("hotfix-1.2.1"));
             fixture.Repository.MakeACommit();
 
             fixture.AssertFullSemver("1.2.1-beta.1+1");
@@ -43,6 +43,33 @@ public class HotfixBranchScenarios
     }
 
     [Test]
+    public void CanTakeVersionFromHotfixesBranch()
+    {
+        using (var fixture = new BaseGitFlowRepositoryFixture(r =>
+        {
+            r.MakeATaggedCommit("1.0.0");
+            r.MakeATaggedCommit("1.1.0");
+            r.MakeATaggedCommit("2.0.0");
+        }))
+        {
+
+            // Merge hotfix branch to support
+            fixture.Repository.Checkout("master");
+            fixture.Repository.Checkout(fixture.Repository.CreateBranch("support-1.1", (Commit)fixture.Repository.Tags.Single(t => t.Name == "1.1.0").Target));
+            fixture.AssertFullSemver("1.1.0");
+
+            // create hotfix branch
+            fixture.Repository.Checkout(fixture.Repository.CreateBranch("hotfixes/1.1.1"));
+            fixture.AssertFullSemver("1.1.0"); // We are still on a tagged commit
+            fixture.Repository.MakeACommit();
+
+            fixture.AssertFullSemver("1.1.1-beta.1+1");
+            fixture.Repository.MakeACommit();
+            fixture.AssertFullSemver("1.1.1-beta.1+2");
+        }
+    }
+
+    [Test]
     public void PatchOlderReleaseExample()
     {
         using (var fixture = new BaseGitFlowRepositoryFixture(r =>
@@ -54,11 +81,11 @@ public class HotfixBranchScenarios
         {
             // Merge hotfix branch to support
             fixture.Repository.Checkout("master");
-            fixture.Repository.CreateBranch("support-1.1", (Commit)fixture.Repository.Tags.Single(t => t.Name == "1.1.0").Target).Checkout();
+            fixture.Repository.Checkout(fixture.Repository.CreateBranch("support-1.1", (Commit) fixture.Repository.Tags.Single(t => t.Name == "1.1.0").Target));
             fixture.AssertFullSemver("1.1.0");
 
             // create hotfix branch
-            fixture.Repository.CreateBranch("hotfix-1.1.1").Checkout();
+            fixture.Repository.Checkout(fixture.Repository.CreateBranch("hotfix-1.1.1"));
             fixture.AssertFullSemver("1.1.0"); // We are still on a tagged commit
             fixture.Repository.MakeACommit();
 
@@ -67,12 +94,12 @@ public class HotfixBranchScenarios
             fixture.AssertFullSemver("1.1.1-beta.1+2");
 
             // Create feature branch off hotfix branch and complete
-            fixture.Repository.CreateBranch("feature/fix").Checkout();
+            fixture.Repository.Checkout(fixture.Repository.CreateBranch("feature/fix"));
             fixture.AssertFullSemver("1.1.1-fix.1+2");
             fixture.Repository.MakeACommit();
             fixture.AssertFullSemver("1.1.1-fix.1+3");
 
-            fixture.Repository.CreatePullRequest("feature/fix", "hotfix-1.1.1", isRemotePr: false);
+            fixture.Repository.CreatePullRequestRef("feature/fix", "hotfix-1.1.1", normalise: true);
             fixture.AssertFullSemver("1.1.1-PullRequest.2+4");
             fixture.Repository.Checkout("hotfix-1.1.1");
             fixture.Repository.MergeNoFF("feature/fix", Constants.SignatureNow());

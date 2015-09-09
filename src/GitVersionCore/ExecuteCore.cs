@@ -9,8 +9,12 @@ namespace GitVersion
         public static VersionVariables ExecuteGitVersion(IFileSystem fileSystem, string targetUrl, string dynamicRepositoryLocation, Authentication authentication, string targetBranch, bool noFetch, string workingDirectory, string commitId)
         {
             // Normalise if we are running on build server
-            var gitPreparer = new GitPreparer(targetUrl, dynamicRepositoryLocation, authentication, targetBranch, noFetch, workingDirectory);
-            gitPreparer.Initialise(BuildServerList.GetApplicableBuildServers().Any());
+            var gitPreparer = new GitPreparer(targetUrl, dynamicRepositoryLocation, authentication, noFetch, workingDirectory);
+            var applicableBuildServers = BuildServerList.GetApplicableBuildServers();
+            var buildServer = applicableBuildServers.FirstOrDefault();
+
+            gitPreparer.Initialise(buildServer != null, ResolveCurrentBranch(buildServer, targetBranch));
+
             var dotGitDirectory = gitPreparer.GetDotGitDirectory();
             var projectRoot = gitPreparer.GetProjectRootDirectory();
             Logger.WriteInfo(string.Format("Project root is: " + projectRoot));
@@ -27,11 +31,20 @@ namespace GitVersion
             {
                 var gitVersionContext = new GitVersionContext(repo, configuration, commitId: commitId);
                 var semanticVersion = versionFinder.FindVersion(gitVersionContext);
-                var config = gitVersionContext.Configuration;
-                variables = VariableProvider.GetVariablesFor(semanticVersion, config.AssemblyVersioningScheme, config.VersioningMode, config.ContinuousDeploymentFallbackTag, gitVersionContext.IsCurrentCommitTagged);
+                variables = VariableProvider.GetVariablesFor(semanticVersion, gitVersionContext.Configuration, gitVersionContext.IsCurrentCommitTagged);
             }
 
             return variables;
+        }
+
+        private static string ResolveCurrentBranch(IBuildServer buildServer, string targetBranch)
+        {
+            if (buildServer == null) return targetBranch;
+
+            var currentBranch = buildServer.GetCurrentBranch() ?? targetBranch;
+            Logger.WriteInfo("Branch from build environment: " + currentBranch);
+
+            return currentBranch;
         }
     }
 }

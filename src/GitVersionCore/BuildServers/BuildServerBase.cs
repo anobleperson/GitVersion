@@ -8,6 +8,11 @@
         public abstract string GenerateSetVersionMessage(string versionToUseForBuildNumber);
         public abstract string[] GenerateSetParameterMessage(string name, string value);
 
+        public virtual string GetCurrentBranch()
+        {
+            return null;
+        }
+
         public virtual void WriteIntegration(Action<string> writer, VersionVariables variables)
         {
             if (writer == null)

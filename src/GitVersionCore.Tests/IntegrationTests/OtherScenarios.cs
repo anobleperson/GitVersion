@@ -22,9 +22,9 @@
                 fixture.Repository.MakeACommit();
                 fixture.Repository.CreateBranch("develop");
 
-                fixture.LocalRepository.Network.Fetch(fixture.LocalRepository.Network.Remotes.First());
-                fixture.LocalRepository.Checkout(fixture.Repository.Head.Tip);
-                fixture.LocalRepository.Branches.Remove("master");
+                fixture.LocalRepositoryFixture.Repository.Network.Fetch(fixture.LocalRepositoryFixture.Repository.Network.Remotes.First());
+                fixture.LocalRepositoryFixture.Repository.Checkout(fixture.Repository.Head.Tip);
+                fixture.LocalRepositoryFixture.Repository.Branches.Remove("master");
                 fixture.InitialiseRepo();
                 fixture.AssertFullSemver("1.0.1+1");
             }
@@ -36,15 +36,15 @@
             using (var fixture = new RemoteRepositoryFixture(new Config()))
             {
                 fixture.Repository.MakeACommit();
-                fixture.Repository.CreateBranch("develop").Checkout();
+                fixture.Repository.Checkout(fixture.Repository.CreateBranch("develop"));
                 fixture.Repository.MakeACommit();
                 fixture.Repository.MakeATaggedCommit("1.0.0");
                 fixture.Repository.MakeACommit();
                 fixture.Repository.CreateBranch("feature/someFeature");
 
-                fixture.LocalRepository.Network.Fetch(fixture.LocalRepository.Network.Remotes.First());
-                fixture.LocalRepository.Checkout(fixture.Repository.Head.Tip);
-                fixture.LocalRepository.Branches.Remove("master");
+                fixture.LocalRepositoryFixture.Repository.Network.Fetch(fixture.LocalRepositoryFixture.Repository.Network.Remotes.First());
+                fixture.LocalRepositoryFixture.Repository.Checkout(fixture.Repository.Head.Tip);
+                fixture.LocalRepositoryFixture.Repository.Branches.Remove("master");
                 fixture.InitialiseRepo();
                 fixture.AssertFullSemver("1.1.0-unstable.1");
             }

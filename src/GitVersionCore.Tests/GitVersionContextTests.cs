@@ -17,7 +17,7 @@
             };
             ConfigurationProvider.ApplyDefaultsTo(config);
 
-            var mockBranch = new MockBranch("master") { new MockCommit { CommitterEx = SignatureBuilder.SignatureNow() } };
+            var mockBranch = new MockBranch("master") { new MockCommit { CommitterEx = Constants.SignatureNow() } };
             var mockRepository = new MockRepository
             {
                 Branches = new MockBranchCollection
@@ -39,7 +39,7 @@
                 Branches =
                 {
                     {
-                        "develop", new BranchConfig
+                        "dev(elop)?(ment)?$", new BranchConfig
                         {
                             VersioningMode = VersioningMode.ContinuousDeployment,
                             Tag = "alpha"
@@ -48,12 +48,12 @@
                 }
             };
             ConfigurationProvider.ApplyDefaultsTo(config);
-            var develop = new MockBranch("develop") { new MockCommit { CommitterEx = SignatureBuilder.SignatureNow() } };
+            var develop = new MockBranch("develop") { new MockCommit { CommitterEx = Constants.SignatureNow() } };
             var mockRepository = new MockRepository
             {
                 Branches = new MockBranchCollection
                 {
-                    new MockBranch("master") { new MockCommit { CommitterEx = SignatureBuilder.SignatureNow() } },
+                    new MockBranch("master") { new MockCommit { CommitterEx = Constants.SignatureNow() } },
                     develop
                 }
             };
@@ -68,18 +68,18 @@
             {
                 Branches =
                 {
-                    { "develop", new BranchConfig { Increment = IncrementStrategy.Major} },
-                    { "feature[/-]", new BranchConfig { Increment = IncrementStrategy.Inherit} }
+                    { "dev(elop)?(ment)?$", new BranchConfig { Increment = IncrementStrategy.Major} },
+                    { "features?[/-]", new BranchConfig { Increment = IncrementStrategy.Inherit} }
                 }
             };
 
             using (var repo = new EmptyRepositoryFixture(config))
             {
                 repo.Repository.MakeACommit();
-                repo.Repository.CreateBranch("develop").Checkout();
+                repo.Repository.Checkout(repo.Repository.CreateBranch("develop"));
                 repo.Repository.MakeACommit();
                 var featureBranch = repo.Repository.CreateBranch("feature/foo");
-                featureBranch.Checkout();
+                repo.Repository.Checkout(featureBranch);
                 repo.Repository.MakeACommit();
 
                 var context = new GitVersionContext(repo.Repository, config);

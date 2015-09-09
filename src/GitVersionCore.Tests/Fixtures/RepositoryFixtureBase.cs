@@ -9,25 +9,29 @@ using Shouldly;
 public abstract class RepositoryFixtureBase : IDisposable
 {
     Dictionary<string, string> participants = new Dictionary<string, string>();
-    public string RepositoryPath;
-    public IRepository Repository;
     Config configuration;
     StringBuilder diagramBuilder;
 
     protected RepositoryFixtureBase(Func<string, IRepository> repoBuilder, Config configuration)
+        : this(configuration, repoBuilder(PathHelper.GetTempPath()))
+    {
+    }
+
+    protected RepositoryFixtureBase(Config configuration, IRepository repository)
     {
         ConfigurationProvider.ApplyDefaultsTo(configuration);
         diagramBuilder = new StringBuilder();
         diagramBuilder.AppendLine("@startuml");
         this.configuration = configuration;
-        RepositoryPath = PathHelper.GetTempPath();
-        Repository = repoBuilder(RepositoryPath);
+        Repository = repository;
         Repository.Config.Set("user.name", "Test");
         Repository.Config.Set("user.email", "test@email.com");
         IsForTrackedBranchOnly = true;
     }
 
     public bool IsForTrackedBranchOnly { private get; set; }
+    public IRepository Repository { get; private set; }
+    public string RepositoryPath { get { return Repository.Info.WorkingDirectory.TrimEnd('\\'); } }
 
     public void Checkout(string branch)
     {
@@ -91,7 +95,7 @@ noteText.Replace("\n", "\n  "));
 
         var branch = Repository.Head.Name;
         diagramBuilder.AppendLineFormat("{0} -> {1}: branch from {2}", GetParticipant(branch), GetParticipant(branchName), branch);
-        Repository.CreateBranch(branchName).Checkout();
+        Repository.Checkout(Repository.CreateBranch(branchName));
     }
 
     public void BranchToFromTag(string branchName, string fromTag, string onBranch, string @as = null)
@@ -103,7 +107,7 @@ noteText.Replace("\n", "\n  "));
         }
 
         diagramBuilder.AppendLineFormat("{0} -> {1}: branch from tag ({2})", GetParticipant(onBranch), GetParticipant(branchName), fromTag);
-        Repository.CreateBranch(branchName).Checkout();
+        Repository.Checkout(Repository.CreateBranch(branchName));
     }
 
     public void MakeACommit()
@@ -120,17 +124,16 @@ noteText.Replace("\n", "\n  "));
 
     public void AssertFullSemver(string fullSemver, IRepository repository = null, string commitId = null)
     {
-        Trace.WriteLine("---------");
+        Console.WriteLine("---------");
 
-        var variables = GetVersion(repository, commitId);
         try
         {
+            var variables = GetVersion(repository, commitId);
             variables.FullSemVer.ShouldBe(fullSemver);
         }
         catch (Exception)
         {
-            if (repository != null)
-                repository.DumpGraph();
+            (repository ?? Repository).DumpGraph();
             throw;
         }
         if (commitId == null)
@@ -149,18 +152,14 @@ noteText.Replace("\n", "\n  "));
     {
         var gitVersionContext = new GitVersionContext(repository ?? Repository, configuration, IsForTrackedBranchOnly, commitId);
         var executeGitVersion = ExecuteGitVersion(gitVersionContext);
-        var variables = VariableProvider.GetVariablesFor(executeGitVersion,
-            gitVersionContext.Configuration.AssemblyVersioningScheme,
-            gitVersionContext.Configuration.VersioningMode,
-            gitVersionContext.Configuration.ContinuousDeploymentFallbackTag,
-            gitVersionContext.IsCurrentCommitTagged);
+        var variables = VariableProvider.GetVariablesFor(executeGitVersion, gitVersionContext.Configuration, gitVersionContext.IsCurrentCommitTagged);
         try
         {
             return variables;
         }
         catch (Exception)
         {
-            Trace.WriteLine("Test failing, dumping repository graph");
+            Console.WriteLine("Test failing, dumping repository graph");
             gitVersionContext.Repository.DumpGraph();
             throw;
         }
@@ -189,5 +188,12 @@ noteText.Replace("\n", "\n  "));
         Trace.WriteLine("**Visualisation of test:**");
         Trace.WriteLine(string.Empty);
         Trace.WriteLine(diagramBuilder.ToString());
+    }
+
+    public LocalRepositoryFixture CloneRepository(Config config = null)
+    {
+        var localPath = PathHelper.GetTempPath();
+        LibGit2Sharp.Repository.Clone(RepositoryPath, localPath);
+        return new LocalRepositoryFixture(config ?? new Config(), new Repository(localPath));
     }
 }

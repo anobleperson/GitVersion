@@ -2,6 +2,12 @@
 mode: ContinuousDelivery
 tag-prefix: '[vV]'
 continuous-delivery-fallback-tag: ci
+major-version-bump-message: '\+semver:\s?(breaking|major)'
+minor-version-bump-message: '\+semver:\s?(feature|minor)'
+patch-version-bump-message: '\+semver:\s?(fix|patch)'
+legacy-semver-padding: 4
+build-metadata-padding: 4
+commit-message-incrementing: Enabled
 branches:
   master:
     mode: ContinuousDelivery
@@ -9,13 +15,13 @@ branches:
     increment: Patch
     prevent-increment-of-merged-branch-version: true
     track-merge-target: false
-  release[/-]:
+  releases?[/-]:
     mode: ContinuousDelivery
     tag: beta
     increment: Patch
     prevent-increment-of-merged-branch-version: true
     track-merge-target: false
-  feature[/-]:
+  features?[/-]:
     mode: ContinuousDelivery
     tag: useBranchName
     increment: Inherit
@@ -28,7 +34,7 @@ branches:
     prevent-increment-of-merged-branch-version: false
     tag-number-pattern: '[/-](?<number>\d+)[-/]'
     track-merge-target: false
-  hotfix[/-]:
+  hotfix(es)?[/-]:
     mode: ContinuousDelivery
     tag: beta
     increment: Patch
@@ -40,7 +46,7 @@ branches:
     increment: Patch
     prevent-increment-of-merged-branch-version: true
     track-merge-target: false
-  develop:
+  dev(elop)?(ment)?$:
     mode: ContinuousDeployment
     tag: unstable
     increment: Minor
