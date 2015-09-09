@@ -6,7 +6,7 @@ namespace GitVersion
 
     public static class ExecuteCore
     {
-        public static VersionVariables ExecuteGitVersion(IFileSystem fileSystem, string targetUrl, string dynamicRepositoryLocation, Authentication authentication, string targetBranch, bool noFetch, string workingDirectory, string commitId)
+        public static VersionVariables ExecuteGitVersion(IFileSystem fileSystem, string targetUrl, string dynamicRepositoryLocation, Authentication authentication, string targetBranch, bool noFetch, string workingDirectory, string commitId, bool includeUntrackedBranches = false)
         {
             // Normalise if we are running on build server
             var gitPreparer = new GitPreparer(targetUrl, dynamicRepositoryLocation, authentication, noFetch, workingDirectory);
@@ -29,7 +29,7 @@ namespace GitVersion
 
             using (var repo = RepositoryLoader.GetRepo(dotGitDirectory))
             {
-                var gitVersionContext = new GitVersionContext(repo, configuration, commitId: commitId);
+                var gitVersionContext = new GitVersionContext(repo, configuration, commitId: commitId, isForTrackingBranchOnly:!includeUntrackedBranches);
                 var semanticVersion = versionFinder.FindVersion(gitVersionContext);
                 variables = VariableProvider.GetVariablesFor(semanticVersion, gitVersionContext.Configuration, gitVersionContext.IsCurrentCommitTagged);
             }

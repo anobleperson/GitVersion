@@ -18,8 +18,9 @@ namespace GitVersion
             var dynamicRepositoryLocation = arguments.DynamicRepositoryLocation;
             var targetBranch = arguments.TargetBranch;
             var commitId = arguments.CommitId;
+            var includeUntrackedBranches = arguments.IncludeUntrackedBranches;
 
-            var variables = ExecuteCore.ExecuteGitVersion(fileSystem, targetUrl, dynamicRepositoryLocation, authentication, targetBranch, noFetch, targetPath, commitId);
+            var variables = ExecuteCore.ExecuteGitVersion(fileSystem, targetUrl, dynamicRepositoryLocation, authentication, targetBranch, noFetch, targetPath, commitId, includeUntrackedBranches);
 
             if (arguments.Output == OutputType.BuildServer)
             {

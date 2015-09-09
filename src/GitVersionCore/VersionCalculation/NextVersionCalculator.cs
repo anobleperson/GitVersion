@@ -62,6 +62,10 @@
             {
                 Logger.WriteInfo("Using branch name to calculate version tag");
                 var name = branchNameOverride ?? context.CurrentBranch.Name;
+                if (name.StartsWith("origin/"))
+                {
+                    name = name.Substring("origin/".Length);
+                }
                 tagToUse = name.RegexReplace(context.Configuration.BranchPrefixToTrim, string.Empty, RegexOptions.IgnoreCase);
             }
             int? number = null;
