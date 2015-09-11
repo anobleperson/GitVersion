@@ -11,8 +11,8 @@
             new TeamCity(),
             new AppVeyor(),
             new MyGet(),
-            new Jenkins(),
-            new VsoAgent()
+            new Jenkins()
+//            new VsoAgent()
         };
 
         public static IEnumerable<IBuildServer> GetApplicableBuildServers()
